@@ -2,52 +2,104 @@
 #include <stdint.h>
 #include <errno.h>
 #include <string.h>
+#include <stdbool.h>
+#include <math.h>
 #include "wren.c"
 
 #define WIDTH 800
 #define HEIGHT 600
 
-void wrenFillRect(uint32_t *pixels, size_t pixelsWidth, size_t pixelsHeight, int x0, int y0, size_t w, size_t h, uint32_t color) {
-    for (int dy = 0; dy < (int) h; dy++) {
-        int y = y0 + dy;
-        if (0 <= y && y < (int) pixelsHeight) {
-            for (int dx = 0; dx < (int) w; dx++) {
-                int x = x0 + dx;
-                if (0 <= x && x < (int) pixelsWidth) {
-                    pixels[y*pixelsWidth + x] = color;
-                }
-            }
-        }
-    }
-}
-
-static uint32_t pixels[HEIGHT*WIDTH];
-
-#define COLS 8
-#define ROWS 6
+#define COLS (8 * 2)
+#define ROWS (6 * 2)
 #define CELL_WIDTH (WIDTH/COLS)
 #define CELL_HEIGHT (HEIGHT/ROWS)
 
-int main() {
+#define BACKGROUND_COLOR 0xFF202020
+#define FOREGROUND_COLOR 0xFF2020FF
+
+static uint32_t pixels[HEIGHT*WIDTH];
+
+bool checkerExample() {
     wrenFill(pixels, WIDTH, HEIGHT, 0xFF202020);
 
     for (int y = 0; y < ROWS; y++) {
         for (int x = 0; x < COLS; x++) {
-            uint32_t color;
+            uint32_t color = BACKGROUND_COLOR;
             if ((x + y) % 2 == 0) {
-                color = 0xFF000000;
-            } else {
-                color = 0xFF00FF00;
+                color = 0xFF0000FF;
             }
             wrenFillRect(pixels, WIDTH, HEIGHT, x*CELL_WIDTH, y*CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT, color);
         }
     }
 
-    const char *filePath = "output.ppm";
+    const char *filePath = "checker.ppm";
     int err = wrenSaveToPPMFile(pixels, WIDTH, HEIGHT, filePath);
     if (err) {
         fprintf(stderr, "ERROR: could not save file %s:%s\n", filePath, strerror(errno));
-        return 1;
+        return false;
     }
+
+    return true;
+}
+
+float lerpf(float a, float b, float t) {
+    return a + (b - a)*t;
+}
+
+bool circleExample() {
+    wrenFill(pixels, WIDTH, HEIGHT, BACKGROUND_COLOR);
+
+    for (int y = 0; y < ROWS; y++) {
+        for (int x = 0; x < COLS; x++) {
+            float u = (float)x / COLS;
+            float v = (float)y / ROWS;
+            float t = (u + v) / 2;
+
+            size_t radius = CELL_WIDTH;
+            if (CELL_HEIGHT < radius) radius = CELL_HEIGHT;
+            wrenFillCircle(pixels, WIDTH, HEIGHT, x*CELL_WIDTH + CELL_WIDTH/2, y*CELL_HEIGHT + CELL_HEIGHT/2, lerpf(radius / 4, radius / 2, t), FOREGROUND_COLOR);
+        }
+    }
+
+    const char *filePath = "circle.ppm";
+    int err = wrenSaveToPPMFile(pixels, WIDTH, HEIGHT, filePath);
+    if (err) {
+        fprintf(stderr, "ERROR: could not save file %s:%s\n", filePath, strerror(errno));
+        return false;
+    }
+
+    return true;
+}
+
+bool lineExample() {
+    wrenFill(pixels, WIDTH, HEIGHT, BACKGROUND_COLOR);
+
+    wrenDrawLine(pixels, WIDTH, HEIGHT, 0, 0, WIDTH, HEIGHT, FOREGROUND_COLOR);
+    wrenDrawLine(pixels, WIDTH, HEIGHT, WIDTH, 0, 0, HEIGHT, FOREGROUND_COLOR);
+
+    wrenDrawLine(pixels, WIDTH, HEIGHT, 0, 0, WIDTH/4, HEIGHT, 0xFF20FF20);
+    wrenDrawLine(pixels, WIDTH, HEIGHT, WIDTH/4, 0, 0, HEIGHT, 0xFF20FF20);
+
+    wrenDrawLine(pixels, WIDTH, HEIGHT, WIDTH, 0, WIDTH/4*3, HEIGHT, 0xFF20FF20);
+    wrenDrawLine(pixels, WIDTH, HEIGHT, WIDTH/4*3, 0, WIDTH, HEIGHT, 0xFF20FF20);
+
+    wrenDrawLine(pixels, WIDTH, HEIGHT, 0, HEIGHT/2, WIDTH, HEIGHT/2, 0xFFFF2020);
+    wrenDrawLine(pixels, WIDTH, HEIGHT, WIDTH/2, 0, WIDTH/2, HEIGHT, 0xFFFF2020);
+
+    const char *filePath = "lines.ppm";
+    int err = wrenSaveToPPMFile(pixels, WIDTH, HEIGHT, filePath);
+    if (err) {
+        fprintf(stderr, "ERROR: could not save file %s:%s\n", filePath, strerror(errno));
+        return false;
+    }
+
+    return true;
+}
+
+int main() {
+    if (!checkerExample()) return -1;
+    if (!circleExample()) return -1;
+    if (!lineExample()) return -1;
+
     return 0;
 }
