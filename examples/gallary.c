@@ -102,10 +102,26 @@ bool lineExample() {
     return true;
 }
 
+bool triangleExample() {
+    wrenFill(pixels, WIDTH, HEIGHT, BACKGROUND_COLOR);
+
+    wrenFillTriangle(pixels, WIDTH, HEIGHT, 0, 0, WIDTH, 0, WIDTH/2, HEIGHT, FOREGROUND_COLOR);
+
+    const char *filePath = IMGS_DIR_PATH"/triangles.png";
+    printf("Generated %s\n", filePath);
+    if (!stbi_write_png(filePath, WIDTH, HEIGHT, 4, pixels, WIDTH*sizeof(uint32_t))) {
+        fprintf(stderr, "ERROR: could not save file %s:%s\n", filePath, strerror(errno));
+        return false;
+    }
+
+    return true;
+}
+
 int main() {
     if (!checkerExample()) return -1;
     if (!circleExample()) return -1;
     if (!lineExample()) return -1;
+    if (!triangleExample()) return -1;
 
     return 0;
 }

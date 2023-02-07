@@ -2,9 +2,7 @@
 #define WREN_C_
 
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <errno.h>
+#include <stddef.h>
 
 #define WREN_SWAP(T, a, b) do { T t = a; a = b; b = t; } while (0)
 #define WREN_SIGN(T, x) ((T)((x) > 0) - (T)((x) < 0))
@@ -89,6 +87,63 @@ void wrenDrawLine(uint32_t *pixels, size_t pixelsWidth, size_t pixelsHeight,
             for (int y = y1; y <= y2; y++) {
                 if (0 <= y && y < (int) pixelsHeight) {
                     pixels[y*pixelsWidth + x] = color;
+                }
+            }
+        }
+    }
+}
+
+void wrenFillTriangle(uint32_t *pixels, size_t width, size_t height,
+                      int x1, int y1,
+                      int x2, int y2,
+                      int x3, int y3,
+                      uint32_t color) {
+    if (y1 > y2) {
+        WREN_SWAP(int, x1, x2);
+        WREN_SWAP(int, y1, y2);
+    }
+
+    if (y2 > y3) {
+        WREN_SWAP(int, x2, x3);
+        WREN_SWAP(int, y2, y3);
+    }
+    
+    if (y1 > y2) {
+        WREN_SWAP(int, x1, x2);
+        WREN_SWAP(int, y1, y2);
+    }
+
+    int dx12 = x2 - x1;
+    int dy12 = y2 - y1;
+    int dx13 = x3 - x1;
+    int dy13 = y3 - y1;
+
+    for (int y = y1; y <= y2; ++y) {
+        if (0 <= y && (size_t) y < height) {
+            int s1 = dy12 != 0 ? (y - y1)*dx12/dy12 + x1 : x1;
+            int s2 = dy13 != 0 ? (y - y1)*dx13/dy13 + x1 : x1;
+            if (s1 > s2) WREN_SWAP(int, s1, s2);
+            for (int x = s1; x <= s2; ++x) {
+                if (0 <= x && (size_t) x < width) {
+                    pixels[y*width + x] = color;
+                }
+            }
+        }
+    }
+
+    int dx32 = x2 - x3;
+    int dy32 = y2 - y3;
+    int dx31 = x1 - x3;
+    int dy31 = y1 - y3;
+
+    for (int y = y2; y <= y3; ++y) {
+        if (0 <= y && (size_t) y < height) {
+            int s1 = dy32 != 0 ? (y - y3)*dx32/dy32 + x3 : x3;
+            int s2 = dy31 != 0 ? (y - y3)*dx31/dy31 + x3 : x3;
+            if (s1 > s2) WREN_SWAP(int, s1, s2);
+            for (int x = s1; x <= s2; ++x) {
+                if (0 <= x && (size_t) x < width) {
+                    pixels[y*width + x] = color;
                 }
             }
         }
