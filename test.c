@@ -57,63 +57,79 @@ const char *displayHexColor(uint32_t c) {
     return buffer;
 }
 
-uint32_t pixels[WIDTH*HEIGHT];
+static uint32_t actualPixels[WIDTH*HEIGHT];
+static uint32_t diffPixels[WIDTH*HEIGHT];
 
-bool recordTestCase(const char *filePath) {
-    if (!stbi_write_png(filePath, WIDTH, HEIGHT, 4, pixels, sizeof(uint32_t)*WIDTH)) {
-        fprintf(stderr, "ERROR: could not write file: %s: %s\n", filePath, strerror(errno));
+bool recordTestCase(const char *expectedFilePath) {
+    if (!stbi_write_png(expectedFilePath, WIDTH, HEIGHT, 4, actualPixels, sizeof(uint32_t)*WIDTH)) {
+        fprintf(stderr, "ERROR: could not write file: %s: %s\n", expectedFilePath, strerror(errno));
         return false;
     }
 
-    printf("Generated %s\n", filePath);
+    printf("Generated %s\n", expectedFilePath);
     return true;
 }
 
-bool replayTestCase(const char *programPath, const char *filePath, const char *failureFilePath) {
-    bool result = true;
+typedef enum {
+    REPLAY_PASSED,
+    REPLAY_FAILED,
+    REPLAY_ERRORED,
+} ReplayResult;
+
+ReplayResult replayTestCase(const char *programPath, const char *expectedFilePath, const char *actualFilePath, const char *diffFilePath) {
+    ReplayResult result = REPLAY_PASSED;
     uint32_t *expectedPixels = NULL;
 
     {
         int expectedWidth, expectedHeight;
-        expectedPixels = (uint32_t *) stbi_load(filePath, &expectedWidth, &expectedHeight, NULL, 4);
+        expectedPixels = (uint32_t *) stbi_load(expectedFilePath, &expectedWidth, &expectedHeight, NULL, 4);
         if (expectedPixels == NULL) {
-            fprintf(stderr, "%s: TEST FAILURE: could not read file: %s\n", filePath, strerror(errno));
+            fprintf(stderr, "%s: ERROR: could not read file: %s\n", expectedFilePath, strerror(errno));
             if (errno == ENOENT) {
-                fprintf(stderr, "%s: HINT: Consider running `$ %s record` to create it\n", filePath, programPath);
+                fprintf(stderr, "%s: HINT: Consider running `$ %s record` to create it\n", expectedFilePath, programPath);
             }
-            returnDefer(false);
+            returnDefer(REPLAY_ERRORED);
         }
 
         if (expectedWidth != WIDTH || expectedHeight != HEIGHT) {
             fprintf(stderr, "%s: TEST FAILURE: unexpected image size. Expected %dx%d, but got %dx%d\n",
-                    filePath, expectedWidth, expectedHeight, WIDTH, HEIGHT);
-            returnDefer(false);
+                    expectedFilePath, expectedWidth, expectedHeight, WIDTH, HEIGHT);
+            returnDefer(REPLAY_FAILED);
         }
 
         bool failed = false;
         for (size_t y = 0; y < HEIGHT; y++) {
             for (size_t x = 0; x < WIDTH; x++) {
                 uint32_t expectedPixel = expectedPixels[y*WIDTH + x];
-                uint32_t actualPixel = pixels[y*WIDTH + x];
+                uint32_t actualPixel = actualPixels[y*WIDTH + x];
                 if (expectedPixel != actualPixel) {
-                    pixels[y*WIDTH + x] = ERROR_COLOR;
+                    diffPixels[y*WIDTH + x] = ERROR_COLOR;
                     failed = true;
+                } else {
+                    diffPixels[y*WIDTH + x] = expectedPixel;
                 }
             }
         }
 
         if (failed) {
-            fprintf(stderr, "%s: TEST FAILURE: unexpected pixels in generated image\n", filePath);
-            if (!stbi_write_png(failureFilePath, WIDTH, HEIGHT, 4, pixels, sizeof(uint32_t)*WIDTH)) {
-                fprintf(stderr, "ERROR: could not generate image diff %s: %s\n", failureFilePath, strerror(errno));
-            } else {
-                fprintf(stderr, "%s: HINT: See image diff %s for more info. The pixels with color %s are the ones that differ from the expected ones.\n", filePath, failureFilePath, displayHexColor(ERROR_COLOR));
-                fprintf(stderr, "%s: HINT: If this behavior is intentional confirm that by updating the image with `$ %s record`\n", filePath, programPath);
+            fprintf(stderr, "%s: TEST FAILURE: unexpected pixels in generated image\n", expectedFilePath);
+            if (!stbi_write_png(actualFilePath, WIDTH, HEIGHT, 4, actualPixels, sizeof(uint32_t)*WIDTH)) {
+                fprintf(stderr, "ERROR: could not generate image with actual pixels %s: %s\n", actualFilePath, strerror(errno));\
+                returnDefer(REPLAY_ERRORED);
             }
-            returnDefer(false);
+
+            if (!stbi_write_png(diffFilePath, WIDTH, HEIGHT, 4, diffPixels, sizeof(uint32_t)*WIDTH)) {
+                fprintf(stderr, "ERROR: could not generate diff image %s: %s\n", diffFilePath, strerror(errno));\
+                returnDefer(REPLAY_ERRORED);
+            }
+            
+            fprintf(stderr, "%s: HINT: See actual image %s\n", expectedFilePath, actualFilePath);
+            fprintf(stderr, "%s: HINT: See diff image %s\n", expectedFilePath, diffFilePath);
+            fprintf(stderr, "%s: HINT: If this behaviour is intentional confirm that by updating the image with `$ %s record`\n", expectedFilePath, programPath);
+            returnDefer(REPLAY_FAILED);
         }
 
-        printf("%s OK\n", filePath);
+        printf("%s OK\n", expectedFilePath);
     }
 
 defer:
@@ -122,61 +138,76 @@ defer:
 }
 
 typedef struct {
-    void (*run)(void);
-    const char *filePath;
-    const char *failureFilePath;
+    void (*generateActualPixels)(void);
+    const char *expectedFilePath;
+    const char *actualFilePath;
+    const char *diffFilePath;
 } TestCase;
 
 #define DEFINE_TEST_CASE(name) \
     { \
-        .run = name, \
-        .filePath = TEST_DIR_PATH "/" #name ".png", \
-        .failureFilePath = TEST_DIR_PATH "/" #name "_failure.png" \
+        .generateActualPixels = name, \
+        .expectedFilePath = TEST_DIR_PATH "/" #name "_expected.png", \
+        .actualFilePath = TEST_DIR_PATH "/" #name "_actual.png", \
+        .diffFilePath = TEST_DIR_PATH "/" #name "_diff.png" \
     }
 
 void testFillRect() {
-    wrenFill(pixels, WIDTH, HEIGHT, BACKGROUND_COLOR);
-    wrenFillRect(pixels, WIDTH, HEIGHT, WIDTH/2 - WIDTH/8, HEIGHT/2 - HEIGHT/8, WIDTH/4, HEIGHT/4, RED_COLOR);
-    wrenFillRect(pixels, WIDTH, HEIGHT, WIDTH - 1, HEIGHT - 1, -WIDTH/2, -HEIGHT/2, GREEN_COLOR);
-    wrenFillRect(pixels, WIDTH, HEIGHT, -WIDTH/4, -HEIGHT/4, WIDTH/2, HEIGHT/2, BLUE_COLOR);
+    WrenCanvas wc = wrenMakeCanvas(actualPixels, WIDTH, HEIGHT);
+    wrenFill(wc, BACKGROUND_COLOR);
+    wrenFillRect(wc, WIDTH/2 - WIDTH/8, HEIGHT/2 - HEIGHT/8, WIDTH/4, HEIGHT/4, RED_COLOR);
+    wrenFillRect(wc, WIDTH - 1, HEIGHT - 1, -WIDTH/2, -HEIGHT/2, GREEN_COLOR);
+    wrenFillRect(wc, -WIDTH/4, -HEIGHT/4, WIDTH/2, HEIGHT/2, BLUE_COLOR);
 }
 
 void testFillCircle() {
-    wrenFill(pixels, WIDTH, HEIGHT, BACKGROUND_COLOR);
-    wrenFillCircle(pixels, WIDTH, HEIGHT, 0, 0, WIDTH/2, RED_COLOR);
-    wrenFillCircle(pixels, WIDTH, HEIGHT, WIDTH/2, HEIGHT/2, WIDTH/4, BLUE_COLOR);
-    wrenFillCircle(pixels, WIDTH, HEIGHT, WIDTH*3/4, HEIGHT*3/4, -WIDTH/4, GREEN_COLOR);
+    WrenCanvas wc = wrenMakeCanvas(actualPixels, WIDTH, HEIGHT);
+    wrenFill(wc, BACKGROUND_COLOR);
+    wrenFillCircle(wc, 0, 0, WIDTH/2, RED_COLOR);
+    wrenFillCircle(wc, WIDTH/2, HEIGHT/2, WIDTH/4, BLUE_COLOR);
+    wrenFillCircle(wc, WIDTH*3/4, HEIGHT*3/4, -WIDTH/4, GREEN_COLOR);
 }
 
 void testDrawLine() {
-    wrenFill(pixels, WIDTH, HEIGHT, BACKGROUND_COLOR);
-    wrenDrawLine(pixels, WIDTH, HEIGHT, 0, 0, WIDTH, HEIGHT, RED_COLOR);
-    wrenDrawLine(pixels, WIDTH, HEIGHT, WIDTH, 0, 0, HEIGHT, BLUE_COLOR);
+    WrenCanvas wc = wrenMakeCanvas(actualPixels, WIDTH, HEIGHT);
+    wrenFill(wc, BACKGROUND_COLOR);
+    wrenDrawLine(wc, 0, 0, WIDTH, HEIGHT, RED_COLOR);
+    wrenDrawLine(wc, WIDTH, 0, 0, HEIGHT, BLUE_COLOR);
 }
 
 void testFillTriangle() {
-    wrenFill(pixels, WIDTH, HEIGHT, BACKGROUND_COLOR);
+    WrenCanvas wc = wrenMakeCanvas(actualPixels, WIDTH, HEIGHT);
+    wrenFill(wc, BACKGROUND_COLOR);
 
     {
         int x1 = WIDTH/2, y1 = HEIGHT/8;
         int x2 = WIDTH/8, y2 = HEIGHT/2;
         int x3 = WIDTH*7/8, y3 = HEIGHT*7/8;
-        wrenFillTriangle(pixels, WIDTH, HEIGHT, x1, y1, x2, y2, x3, y3, RED_COLOR);
+        wrenFillTriangle(wc, x1, y1, x2, y2, x3, y3, RED_COLOR);
     }
 
     {
         int x1 = WIDTH/2, y1 = HEIGHT*2/8;
         int x2 = WIDTH*2/8, y2 = HEIGHT/2;
         int x3 = WIDTH*6/8, y3 = HEIGHT/2;
-        wrenFillTriangle(pixels, WIDTH, HEIGHT, x1, y1, x2, y2, x3, y3, GREEN_COLOR);
+        wrenFillTriangle(wc, x1, y1, x2, y2, x3, y3, GREEN_COLOR);
     }
 
     {
         int x1 = WIDTH/8, y1 = HEIGHT/8;
         int x2 = WIDTH/8, y2 = HEIGHT*3/8;
         int x3 = WIDTH*3/8, y3 = HEIGHT*3/8;
-        wrenFillTriangle(pixels, WIDTH, HEIGHT, x1, y1, x2, y2, x3, y3, BLUE_COLOR);
+        wrenFillTriangle(wc, x1, y1, x2, y2, x3, y3, BLUE_COLOR);
     }
+}
+
+void testAlphaBlending() {
+    WrenCanvas wc = wrenMakeCanvas(actualPixels, WIDTH, HEIGHT);
+    wrenFill(wc, BACKGROUND_COLOR);
+    wrenFillRect(wc, 0, 0, WIDTH*3/4, HEIGHT*3/4, RED_COLOR);
+    wrenFillRect(wc, WIDTH-1, HEIGHT-1, -WIDTH*3/4, -HEIGHT*3/4, 0x5520AA20);
+    wrenFillCircle(wc, WIDTH/2, HEIGHT/2, WIDTH/4, 0xBBAA2020);
+    wrenFillTriangle(wc, 0, HEIGHT, WIDTH, HEIGHT, WIDTH/2, 0, 0xBB20AAAA);
 }
 
 TestCase testCases[] = {
@@ -184,6 +215,7 @@ TestCase testCases[] = {
     DEFINE_TEST_CASE(testFillCircle),
     DEFINE_TEST_CASE(testDrawLine),
     DEFINE_TEST_CASE(testFillTriangle),
+    DEFINE_TEST_CASE(testAlphaBlending),
 };
 #define TEST_CASES_COUNT (sizeof(testCases)/sizeof(testCases[0]))
 
@@ -193,11 +225,11 @@ int main(int argc, char **argv) {
     bool record = argc >= 2 && strcmp(argv[1], "record") == 0;
 
     for (size_t i = 0; i < TEST_CASES_COUNT; i++) {
-        testCases[i].run();
+        testCases[i].generateActualPixels();
         if (record) {
-            if (!recordTestCase(testCases[i].filePath)) return 1;
+            if (!recordTestCase(testCases[i].expectedFilePath)) return 1;
         } else {
-            if (!replayTestCase(programPath, testCases[i].filePath, testCases[i].failureFilePath)) return 1;
+            if (replayTestCase(programPath, testCases[i].expectedFilePath, testCases[i].actualFilePath, testCases[i].diffFilePath) == REPLAY_ERRORED) return 1;
         }
     }
 
