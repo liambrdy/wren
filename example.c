@@ -4,6 +4,10 @@
 #include <string.h>
 #include <stdbool.h>
 #include <math.h>
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
 #include "wren.c"
 
 #define WIDTH 800
@@ -16,6 +20,8 @@
 
 #define BACKGROUND_COLOR 0xFF202020
 #define FOREGROUND_COLOR 0xFF2020FF
+
+#define IMGS_DIR_PATH "./imgs"
 
 static uint32_t pixels[HEIGHT*WIDTH];
 
@@ -32,9 +38,9 @@ bool checkerExample() {
         }
     }
 
-    const char *filePath = "checker.ppm";
-    int err = wrenSaveToPPMFile(pixels, WIDTH, HEIGHT, filePath);
-    if (err) {
+    const char *filePath = IMGS_DIR_PATH"/checker.png";
+    printf("Generated %s\n", filePath);
+    if (!stbi_write_png(filePath, WIDTH, HEIGHT, 4, pixels, WIDTH*sizeof(uint32_t))) {
         fprintf(stderr, "ERROR: could not save file %s:%s\n", filePath, strerror(errno));
         return false;
     }
@@ -61,9 +67,9 @@ bool circleExample() {
         }
     }
 
-    const char *filePath = "circle.ppm";
-    int err = wrenSaveToPPMFile(pixels, WIDTH, HEIGHT, filePath);
-    if (err) {
+    const char *filePath = IMGS_DIR_PATH"/circle.png";
+    printf("Generated %s\n", filePath);
+    if (!stbi_write_png(filePath, WIDTH, HEIGHT, 4, pixels, WIDTH*sizeof(uint32_t))) {
         fprintf(stderr, "ERROR: could not save file %s:%s\n", filePath, strerror(errno));
         return false;
     }
@@ -86,9 +92,9 @@ bool lineExample() {
     wrenDrawLine(pixels, WIDTH, HEIGHT, 0, HEIGHT/2, WIDTH, HEIGHT/2, 0xFFFF2020);
     wrenDrawLine(pixels, WIDTH, HEIGHT, WIDTH/2, 0, WIDTH/2, HEIGHT, 0xFFFF2020);
 
-    const char *filePath = "lines.ppm";
-    int err = wrenSaveToPPMFile(pixels, WIDTH, HEIGHT, filePath);
-    if (err) {
+    const char *filePath = IMGS_DIR_PATH"/lines.png";
+    printf("Generated %s\n", filePath);
+    if (!stbi_write_png(filePath, WIDTH, HEIGHT, 4, pixels, WIDTH*sizeof(uint32_t))) {
         fprintf(stderr, "ERROR: could not save file %s:%s\n", filePath, strerror(errno));
         return false;
     }
