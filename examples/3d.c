@@ -1,19 +1,6 @@
 #define WREN_IMPLEMENTATION
 #include "wren.c"
 
-#define WIDTH 800
-#define HEIGHT 600
-#define BACKGROUND_COLOR 0xFF181818
-#define CIRCLE_RADIUS 100
-#define CIRCLE_COLOR 0x99AA2020
-
-static uint32_t pixels[WIDTH*HEIGHT];
-static float triangleAngle = 0;
-static float circleX = WIDTH/2;
-static float circleY = HEIGHT/2;
-static float circleDx = 100;
-static float circleDy = 100;
-
 float sqrtf(float x);
 float atan2f(float y, float x);
 float sinf(float x);
@@ -21,49 +8,71 @@ float cosf(float x);
 
 #define PI 3.14159265359
 
-static inline void rotatePoint(float *x, float *y) {
-    float dx = *x - WIDTH/2;
-    float dy = *y - HEIGHT/2;
-    float mag = sqrtf(dx*dx + dy*dy);
-    float dir = atan2f(dy, dx) + triangleAngle;
-    *x = cosf(dir)*mag + WIDTH/2;
-    *y = sinf(dir)*mag + HEIGHT/2;
-}
+#define WIDTH 800
+#define HEIGHT 600
+#define BACKGROUND_COLOR 0xFF181818
+#define GRID_COUNT 10
+#define GRID_PAD 0.5/GRID_COUNT
+#define GRID_SIZE ((GRID_COUNT - 1)*GRID_PAD)
+#define CIRCLE_RADIUS 5
+#define Z_START 0.25
+#define TEXT_PADDING 50
+
+uint32_t circleColors[] = {
+    0xFF2020FF,
+    0xFF20FF20,
+    0xFFFF2020,
+    0xFF20FFFF,
+    0xFFFF20FF,
+    0xFFFFFF20,
+};
+#define circleColorsCount (sizeof(circleColors)/sizeof(circleColors[0]))
+
+static uint32_t pixels[WIDTH*HEIGHT];
+static float angle = 0;
 
 uint32_t *render(float dt) {
+    angle += 0.25f*PI*dt;
+
     WrenCanvas wc = wrenCanvas(pixels, WIDTH, HEIGHT);
 
-    wrenFill(wc, 0xFF181818);
-    {
-        triangleAngle += 0.5f*PI*dt;
+    wrenFill(wc, BACKGROUND_COLOR);
+    for (int ix = 0; ix < GRID_COUNT; ix++) {
+        for (int iy = 0; iy < GRID_COUNT; iy++) {
+            for (int iz = 0; iz < GRID_COUNT; iz++) {
+                float x = ix*GRID_PAD - GRID_SIZE/2;
+                float y = iy*GRID_PAD - GRID_SIZE/2;
+                float z = Z_START + iz*GRID_PAD;
 
-        float x1 = WIDTH/2, y1 = HEIGHT/8;
-        float x2 = WIDTH/8, y2 = HEIGHT/2;
-        float x3 = WIDTH*7/8, y3 = HEIGHT*7/8;
-        rotatePoint(&x1, &y1);
-        rotatePoint(&x2, &y2);
-        rotatePoint(&x3, &y3);
+                float cx = 0.0f;
+                float cz = Z_START + GRID_SIZE/2;
 
-        wrenTriangle(wc, x1, y1, x2, y2, x3, y3, 0xFF2020AA);
+                float dx = x - cx;
+                float dz = z - cz;
+                
+                float a = atan2f(dz, dx);
+                float m = sqrtf(dx*dx + dz*dz);
+
+                dx = cosf(a + angle)*m;
+                dz = sinf(a + angle)*m;
+
+                x = dx + cx;
+                z = dz + cz;
+
+                x /= z;
+                y /= z;
+
+                uint32_t r = ix*255/GRID_COUNT;
+                uint32_t g = iy*255/GRID_COUNT;
+                uint32_t b = iz*255/GRID_COUNT;
+                uint32_t color = 0xFF000000 | (r<<(0*8)) | (g<<(1*8)) | (b<<(2*8));
+                wrenCircle(wc, (x + 1)/2*WIDTH, (y + 1)/2*HEIGHT, CIRCLE_RADIUS, color);
+            }
+        }
     }
 
-    {
-        float x = circleX + circleDx*dt;
-        if (x - CIRCLE_RADIUS < 0 || x + CIRCLE_RADIUS >= WIDTH) {
-            circleDx *= -1;
-        } else {
-            circleX = x;
-        }
-
-        float y = circleY + circleDy*dt;
-        if (y - CIRCLE_RADIUS < 0 || y + CIRCLE_RADIUS >= HEIGHT) {
-            circleDy *= -1;
-        } else {
-            circleY = y;
-        }
-
-        wrenCircle(wc, circleX, circleY, CIRCLE_RADIUS, CIRCLE_COLOR);
-    }
+    size_t size = 8;
+    wrenText(wc, "abcd", TEXT_PADDING, HEIGHT - TEXT_PADDING - defaultFont.height*size, defaultFont, size, 0xFFFFFFFF);
 
     return pixels;
 }
@@ -147,7 +156,7 @@ defer:
 #include <time.h>
 #include <unistd.h>
 
-#define SCALE_DOWN_FACTOR 20
+#define SCALE_DOWN_FACTOR 5
 static_assert(WIDTH%SCALE_DOWN_FACTOR == 0, "WIDTH must be divisible by the SCALE_DOWN_FACTOR");
 #define SCALED_DOWN_WIDTH (WIDTH/SCALE_DOWN_FACTOR)
 static_assert(HEIGHT%SCALE_DOWN_FACTOR == 0, "HEIGHT must be divisible by the SCALE_DOWN_FACTOR");

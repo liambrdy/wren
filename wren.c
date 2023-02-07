@@ -9,9 +9,85 @@
 #define WRENDEF static inline
 #endif
 
+#ifndef WREN_AA_RES
+#define WREN_AA_RES 2
+#endif
+
 #define WREN_SWAP(T, a, b) do { T t = a; a = b; b = t; } while (0)
 #define WREN_SIGN(T, x) ((T)((x) > 0) - (T)((x) < 0))
 #define WREN_ABS(T, x) (WREN_SIGN(T, x)*(x))
+
+typedef struct {
+    size_t width, height;
+    const char *glyphs;
+} WrenFont;
+
+#define DEFAULT_FONT_HEIGHT 5
+#define DEFAULT_FONT_WIDTH 5
+static char defaultFontGlyphs[128][DEFAULT_FONT_HEIGHT][DEFAULT_FONT_WIDTH] = {
+    ['a'] = {
+        {0, 1, 1, 0, 0},
+        {0, 0, 0, 1, 0},
+        {0, 1, 1, 1, 0},
+        {1, 0, 0, 1, 0},
+        {0, 1, 1, 1, 0},
+    },
+    ['b'] = {
+        {1, 0, 0, 0, 0},
+        {1, 0, 0, 0, 0},
+        {1, 1, 1, 0, 0},
+        {1, 0, 0, 1, 0},
+        {1, 1, 1, 0, 0},
+    },
+    ['c'] = {
+        {0, 1, 1, 0, 0},
+        {1, 0, 0, 1, 0},
+        {1, 0, 0, 0, 0},
+        {1, 0, 0, 1, 0},
+        {0, 1, 1, 0, 0},
+    },
+    ['d'] = {
+        {0, 0, 0, 1, 0},
+        {0, 0, 0, 1, 0},
+        {0, 1, 1, 1, 0},
+        {1, 0, 0, 1, 0},
+        {0, 1, 1, 1, 0},
+    },
+    ['e'] = {
+        {0, 1, 1, 0, 0},
+        {1, 0, 0, 1, 0},
+        {1, 1, 1, 1, 0},
+        {1, 0, 0, 0, 0},
+        {0, 1, 1, 1, 0},
+    },
+    ['f'] = {
+        {0, 0, 1, 1, 0},
+        {0, 1, 0, 0, 0},
+        {1, 1, 1, 1, 0},
+        {0, 1, 0, 0, 0},
+        {0, 1, 0, 0, 0},
+    },
+    ['p'] = {
+        {1, 1, 1, 0, 0},
+        {1, 0, 0, 1, 0},
+        {1, 1, 1, 0, 0},
+        {1, 0, 0, 0, 0},
+        {1, 0, 0, 0, 0},
+    },
+    ['o'] = {
+        {0, 1, 1, 0, 0},
+        {1, 0, 0, 1, 0},
+        {1, 0, 0, 1, 0},
+        {1, 0, 0, 1, 0},
+        {0, 1, 1, 0, 0},
+    },
+};
+
+static WrenFont defaultFont = {
+    .glyphs = &defaultFontGlyphs[0][0][0],
+    .width = DEFAULT_FONT_WIDTH,
+    .height = DEFAULT_FONT_HEIGHT,
+};
 
 typedef struct {
     uint32_t *pixels;
@@ -23,7 +99,29 @@ typedef struct {
 #define WREN_CANVAS_NULL ((WrenCanvas) {0})
 #define WREN_PIXEL(wc, x, y) (wc).pixels[(y)*(wc).stride + (x)]
 
-WRENDEF WrenCanvas wrenMakeCanvas(uint32_t *pixels, size_t width, size_t height) {
+#define WREN_RED(color)   (((color)&0x000000FF)>>(8*0))
+#define WREN_GREEN(color) (((color)&0x0000FF00)>>(8*1))
+#define WREN_BLUE(color)  (((color)&0x00FF0000)>>(8*2))
+#define WREN_ALPHA(color) (((color)&0xFF000000)>>(8*3))
+#define WREN_RGBA(r, g, b, a) ((((r)&0xFF)<<(8*0)) | (((g)&0xFF)<<(8*1)) | (((b)&0xFF)<<(8*2)) | (((a)&0xFF)<<(8*3)))
+
+WRENDEF WrenCanvas wrenCanvas(uint32_t *pixels, size_t width, size_t height);
+WRENDEF WrenCanvas wrenSubcanvas(WrenCanvas wc, int x, int y, int w, int h);
+WRENDEF void wrenBlendColors(uint32_t *c1, uint32_t c2);
+WRENDEF void wrenFill(WrenCanvas wc, uint32_t color);
+WRENDEF void wrenRect(WrenCanvas wc, int x, int y, int w, int h, uint32_t color);
+WRENDEF void wrenCircle(WrenCanvas wc, int cx, int cy, int r, uint32_t color);
+WRENDEF void wrenLine(WrenCanvas wc, int x1, int y1, int x2, int y2, uint32_t color);
+WRENDEF void wrenTriangle(WrenCanvas wc, int x1, int y1, int x2, int y2, int x3, int y3, uint32_t color);
+WRENDEF void wrenText(WrenCanvas wc, const char *text, int x, int y, WrenFont font, size_t size, uint32_t color);
+
+WRENDEF bool wrenNormalizeRect(int x, int y, int w, int h, size_t pixelsWidth, size_t pixelsHeight, int *x1, int *x2, int *y1, int *y2);
+
+#endif
+
+#ifdef WREN_IMPLEMENTATION
+
+WRENDEF WrenCanvas wrenCanvas(uint32_t *pixels, size_t width, size_t height) {
     WrenCanvas wc = {
         .pixels = pixels,
         .width = width,
@@ -68,21 +166,21 @@ WRENDEF WrenCanvas wrenSubcanvas(WrenCanvas wc, int x, int y, int w, int h) {
 }
 
 WRENDEF void wrenBlendColors(uint32_t *c1, uint32_t c2) {
-    uint32_t r1 = ((*c1)>>(0*8))&0xFF;
-    uint32_t g1 = ((*c1)>>(1*8))&0xFF;
-    uint32_t b1 = ((*c1)>>(2*8))&0xFF;
-    uint32_t a1 = ((*c1)>>(3*8))&0xFF;
+    uint32_t r1 = WREN_RED(*c1);
+    uint32_t g1 = WREN_GREEN(*c1);
+    uint32_t b1 = WREN_BLUE(*c1);
+    uint32_t a1 = WREN_ALPHA(*c1);
 
-    uint32_t r2 = (c2>>(0*8))&0xFF;
-    uint32_t g2 = (c2>>(1*8))&0xFF;
-    uint32_t b2 = (c2>>(2*8))&0xFF;
-    uint32_t a2 = (c2>>(3*8))&0xFF;
+    uint32_t r2 = WREN_RED(c2);
+    uint32_t g2 = WREN_GREEN(c2);
+    uint32_t b2 = WREN_BLUE(c2);
+    uint32_t a2 = WREN_ALPHA(c2);
 
     r1 = (r1*(255 - a2) + r2*a2)/255; if (r1 > 255) r1 = 255;
     g1 = (g1*(255 - a2) + g2*a2)/255; if (g1 > 255) g1 = 255;
     b1 = (b1*(255 - a2) + b2*a2)/255; if (b1 > 255) b1 = 255;
 
-    *c1 = (r1<<(0*8)) | (g1<<(1*8)) | (b1<<(2*8)) | (a1<<(3*8));
+    *c1 = WREN_RGBA(r1, g1, b1, a1);
 }
 
 WRENDEF void wrenFill(WrenCanvas wc, uint32_t color) {
@@ -93,7 +191,7 @@ WRENDEF void wrenFill(WrenCanvas wc, uint32_t color) {
     }
 }
 
-void wrenFillRect(WrenCanvas wc, int x, int y, int w, int h, uint32_t color) {
+WRENDEF void wrenRect(WrenCanvas wc, int x, int y, int w, int h, uint32_t color) {
     int x1, y1, x2, y2;
     if (!wrenNormalizeRect(x, y, w, h, wc.width, wc.height, &x1, &x2, &y1, &y2)) return;
 
@@ -104,23 +202,30 @@ void wrenFillRect(WrenCanvas wc, int x, int y, int w, int h, uint32_t color) {
     }
 }
 
-void wrenFillCircle(WrenCanvas wc, int cx, int cy, int r, uint32_t color) {
+WRENDEF void wrenCircle(WrenCanvas wc, int cx, int cy, int r, uint32_t color) {
     int x1, x2, y1, y2;
     int r1 = r + WREN_SIGN(int, r);
     if (!wrenNormalizeRect(cx - r1, cy - r1, 2*r1, 2*r1, wc.width, wc.height, &x1, &x2, &y1, &y2)) return;
 
     for (int y = y1; y <= y2; y++) {
         for (int x = x1; x <= x2; x++) {
-            int dx = x - cx;
-            int dy = y - cy;
-            if (dx*dx + dy*dy <= r*r) {
-                wrenBlendColors(&WREN_PIXEL(wc, x, y), color);
+            int count = 0;
+            for (int sox = 0; sox < WREN_AA_RES; sox++) {
+                for (int soy = 0; soy < WREN_AA_RES; soy++) {
+                    int res1 = (WREN_AA_RES + 1);
+                    int dx = (x*res1*2 + 2 + sox*2 - res1*cx*2 - res1);
+                    int dy = (y*res1*2 + 2 + soy*2 - res1*cy*2 - res1);
+                    if (dx*dx + dy*dy <= res1*res1*r*r*2*2) count += 1;
+                }
             }
+            uint32_t alpha = ((color&0xFF000000)>>(3*8))*count/WREN_AA_RES/WREN_AA_RES;
+            uint32_t updatedColor = (color&0x00FFFFFF)|(alpha<<(3*8));
+            wrenBlendColors(&WREN_PIXEL(wc, x, y), updatedColor);
         }
     }
 }
 
-void wrenDrawLine(WrenCanvas wc, int x1, int y1, int x2, int y2, uint32_t color) {
+WRENDEF void wrenLine(WrenCanvas wc, int x1, int y1, int x2, int y2, uint32_t color) {
     int dx = x2 - x1;
     int dy = y2 - y1;
     
@@ -153,7 +258,7 @@ void wrenDrawLine(WrenCanvas wc, int x1, int y1, int x2, int y2, uint32_t color)
     }
 }
 
-void wrenFillTriangle(WrenCanvas wc, int x1, int y1, int x2, int y2, int x3, int y3, uint32_t color) {
+WRENDEF void wrenTriangle(WrenCanvas wc, int x1, int y1, int x2, int y2, int x3, int y3, uint32_t color) {
     if (y1 > y2) {
         WREN_SWAP(int, x1, x2);
         WREN_SWAP(int, y1, y2);
@@ -200,6 +305,25 @@ void wrenFillTriangle(WrenCanvas wc, int x1, int y1, int x2, int y2, int x3, int
             for (int x = s1; x <= s2; ++x) {
                 if (0 <= x && (size_t) x < wc.width) {
                     wrenBlendColors(&WREN_PIXEL(wc, x, y), color);
+                }
+            }
+        }
+    }
+}
+
+WRENDEF void wrenText(WrenCanvas wc, const char *text, int tx, int ty, WrenFont font, size_t size, uint32_t color) {
+    for (size_t i = 0; *text; i++, text++) {
+        int gx = tx + i*font.width*size;
+        int gy = ty;
+        const char *glyph = &font.glyphs[(*text)*sizeof(char)*font.width*font.height];
+        for (int dy = 0; (size_t) dy < font.height; dy++) {
+            for (int dx = 0; (size_t) dx < font.width; dx++) {
+                int px = gx + dx*size;
+                int py = gy + dy*size;
+                if (0 <= px && px < (int) wc.width && 0 <= py && py < (int) wc.height) {
+                    if (glyph[dy*font.width + dx]) {
+                        wrenRect(wc, px, py, size, size, color);
+                    }
                 }
             }
         }

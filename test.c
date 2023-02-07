@@ -10,6 +10,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#define WREN_IMPLEMENTATION
 #include "wren.c"
 
 #define returnDefer(value) do { result = (value); goto defer; } while (0)
@@ -153,61 +154,61 @@ typedef struct {
     }
 
 void testFillRect() {
-    WrenCanvas wc = wrenMakeCanvas(actualPixels, WIDTH, HEIGHT);
+    WrenCanvas wc = wrenCanvas(actualPixels, WIDTH, HEIGHT);
     wrenFill(wc, BACKGROUND_COLOR);
-    wrenFillRect(wc, WIDTH/2 - WIDTH/8, HEIGHT/2 - HEIGHT/8, WIDTH/4, HEIGHT/4, RED_COLOR);
-    wrenFillRect(wc, WIDTH - 1, HEIGHT - 1, -WIDTH/2, -HEIGHT/2, GREEN_COLOR);
-    wrenFillRect(wc, -WIDTH/4, -HEIGHT/4, WIDTH/2, HEIGHT/2, BLUE_COLOR);
+    wrenRect(wc, WIDTH/2 - WIDTH/8, HEIGHT/2 - HEIGHT/8, WIDTH/4, HEIGHT/4, RED_COLOR);
+    wrenRect(wc, WIDTH - 1, HEIGHT - 1, -WIDTH/2, -HEIGHT/2, GREEN_COLOR);
+    wrenRect(wc, -WIDTH/4, -HEIGHT/4, WIDTH/2, HEIGHT/2, BLUE_COLOR);
 }
 
 void testFillCircle() {
-    WrenCanvas wc = wrenMakeCanvas(actualPixels, WIDTH, HEIGHT);
+    WrenCanvas wc = wrenCanvas(actualPixels, WIDTH, HEIGHT);
     wrenFill(wc, BACKGROUND_COLOR);
-    wrenFillCircle(wc, 0, 0, WIDTH/2, RED_COLOR);
-    wrenFillCircle(wc, WIDTH/2, HEIGHT/2, WIDTH/4, BLUE_COLOR);
-    wrenFillCircle(wc, WIDTH*3/4, HEIGHT*3/4, -WIDTH/4, GREEN_COLOR);
+    wrenCircle(wc, 0, 0, WIDTH/2, RED_COLOR);
+    wrenCircle(wc, WIDTH/2, HEIGHT/2, WIDTH/4, BLUE_COLOR);
+    wrenCircle(wc, WIDTH*3/4, HEIGHT*3/4, -WIDTH/4, GREEN_COLOR);
 }
 
 void testDrawLine() {
-    WrenCanvas wc = wrenMakeCanvas(actualPixels, WIDTH, HEIGHT);
+    WrenCanvas wc = wrenCanvas(actualPixels, WIDTH, HEIGHT);
     wrenFill(wc, BACKGROUND_COLOR);
-    wrenDrawLine(wc, 0, 0, WIDTH, HEIGHT, RED_COLOR);
-    wrenDrawLine(wc, WIDTH, 0, 0, HEIGHT, BLUE_COLOR);
+    wrenLine(wc, 0, 0, WIDTH, HEIGHT, RED_COLOR);
+    wrenLine(wc, WIDTH, 0, 0, HEIGHT, BLUE_COLOR);
 }
 
 void testFillTriangle() {
-    WrenCanvas wc = wrenMakeCanvas(actualPixels, WIDTH, HEIGHT);
+    WrenCanvas wc = wrenCanvas(actualPixels, WIDTH, HEIGHT);
     wrenFill(wc, BACKGROUND_COLOR);
 
     {
         int x1 = WIDTH/2, y1 = HEIGHT/8;
         int x2 = WIDTH/8, y2 = HEIGHT/2;
         int x3 = WIDTH*7/8, y3 = HEIGHT*7/8;
-        wrenFillTriangle(wc, x1, y1, x2, y2, x3, y3, RED_COLOR);
+        wrenTriangle(wc, x1, y1, x2, y2, x3, y3, RED_COLOR);
     }
 
     {
         int x1 = WIDTH/2, y1 = HEIGHT*2/8;
         int x2 = WIDTH*2/8, y2 = HEIGHT/2;
         int x3 = WIDTH*6/8, y3 = HEIGHT/2;
-        wrenFillTriangle(wc, x1, y1, x2, y2, x3, y3, GREEN_COLOR);
+        wrenTriangle(wc, x1, y1, x2, y2, x3, y3, GREEN_COLOR);
     }
 
     {
         int x1 = WIDTH/8, y1 = HEIGHT/8;
         int x2 = WIDTH/8, y2 = HEIGHT*3/8;
         int x3 = WIDTH*3/8, y3 = HEIGHT*3/8;
-        wrenFillTriangle(wc, x1, y1, x2, y2, x3, y3, BLUE_COLOR);
+        wrenTriangle(wc, x1, y1, x2, y2, x3, y3, BLUE_COLOR);
     }
 }
 
 void testAlphaBlending() {
-    WrenCanvas wc = wrenMakeCanvas(actualPixels, WIDTH, HEIGHT);
+    WrenCanvas wc = wrenCanvas(actualPixels, WIDTH, HEIGHT);
     wrenFill(wc, BACKGROUND_COLOR);
-    wrenFillRect(wc, 0, 0, WIDTH*3/4, HEIGHT*3/4, RED_COLOR);
-    wrenFillRect(wc, WIDTH-1, HEIGHT-1, -WIDTH*3/4, -HEIGHT*3/4, 0x5520AA20);
-    wrenFillCircle(wc, WIDTH/2, HEIGHT/2, WIDTH/4, 0xBBAA2020);
-    wrenFillTriangle(wc, 0, HEIGHT, WIDTH, HEIGHT, WIDTH/2, 0, 0xBB20AAAA);
+    wrenRect(wc, 0, 0, WIDTH*3/4, HEIGHT*3/4, RED_COLOR);
+    wrenRect(wc, WIDTH-1, HEIGHT-1, -WIDTH*3/4, -HEIGHT*3/4, 0x5520AA20);
+    wrenCircle(wc, WIDTH/2, HEIGHT/2, WIDTH/4, 0xBBAA2020);
+    wrenTriangle(wc, 0, HEIGHT, WIDTH, HEIGHT, WIDTH/2, 0, 0xBB20AAAA);
 }
 
 TestCase testCases[] = {
