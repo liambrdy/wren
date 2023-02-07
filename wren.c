@@ -1,13 +1,19 @@
 #ifndef WREN_C_
 #define WREN_C_
 
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <errno.h>
+
+#define returnDefer(value) do { result = (value); goto defer; } while (0)
+#define WREN_SWAP(T, a, b) do { T t = a; a = b; b = t; } while (0)
+
 void wrenFill(uint32_t *pixels, size_t width, size_t height, uint32_t color) {
     for (size_t i = 0; i < width*height; i++) {
         pixels[i] = color;
     }
 }
-
-#define returnDefer(value) do { result = (value); goto defer; } while (0)
 
 int wrenSaveToPPMFile(uint32_t *pixels, size_t width, size_t height, const char *filePath) {
     int result = 0;
@@ -68,12 +74,6 @@ void wrenFillCircle(uint32_t *pixels, size_t pixelsWidth, size_t pixelHeight,
     }
 }
 
-void swapInt(int *a, int *b) {
-    int t = *a;
-    *a = *b;
-    *b = t;
-}
-
 void wrenDrawLine(uint32_t *pixels, size_t pixelsWidth, size_t pixelsHeight, 
                   int x1, int y1, int x2, int y2, uint32_t color) {
     int dx = x2 - x1;
@@ -82,12 +82,12 @@ void wrenDrawLine(uint32_t *pixels, size_t pixelsWidth, size_t pixelsHeight,
     if (dx != 0) {
         int c = y1 - dy*x1/dx;
 
-        if (x1 > x2) swapInt(&x1, &x2);
+        if (x1 > x2) WREN_SWAP(int, x1, x2);
         for (int x = x1; x <= x2; x++) {
             if (0 <= x && x < (int) pixelsWidth) {
                 int sy1 = dy*x/dx + c;
                 int sy2 = dy*(x + 1)/dx + c;
-                if (sy1 > sy2) swapInt(&sy1, &sy2);
+                if (sy1 > sy2) WREN_SWAP(int, sy1, sy2);
                 for (int y = sy1; y <= sy2; y++) {
                     if (0 <= y && y < (int) pixelsHeight) {
                         pixels[y*pixelsWidth + x] = color;
@@ -98,7 +98,7 @@ void wrenDrawLine(uint32_t *pixels, size_t pixelsWidth, size_t pixelsHeight,
     } else {
         int x = x1;
         if (0 <= x && x < (int) pixelsWidth) {
-            if (y1 > y2) swapInt(&y1, &y2);
+            if (y1 > y2) WREN_SWAP(int, y1, y2);
             for (int y = y1; y <= y2; y++) {
                 if (0 <= y && y < (int) pixelsHeight) {
                     pixels[y*pixelsWidth + x] = color;
