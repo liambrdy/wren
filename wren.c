@@ -105,15 +105,18 @@ typedef struct {
 #define WREN_ALPHA(color) (((color)&0xFF000000)>>(8*3))
 #define WREN_RGBA(r, g, b, a) ((((r)&0xFF)<<(8*0)) | (((g)&0xFF)<<(8*1)) | (((b)&0xFF)<<(8*2)) | (((a)&0xFF)<<(8*3)))
 
-WRENDEF WrenCanvas wrenCanvas(uint32_t *pixels, size_t width, size_t height);
+WRENDEF WrenCanvas wrenCanvas(uint32_t *pixels, size_t width, size_t height, size_t stride);
 WRENDEF WrenCanvas wrenSubcanvas(WrenCanvas wc, int x, int y, int w, int h);
 WRENDEF void wrenBlendColors(uint32_t *c1, uint32_t c2);
 WRENDEF void wrenFill(WrenCanvas wc, uint32_t color);
 WRENDEF void wrenRect(WrenCanvas wc, int x, int y, int w, int h, uint32_t color);
 WRENDEF void wrenCircle(WrenCanvas wc, int cx, int cy, int r, uint32_t color);
 WRENDEF void wrenLine(WrenCanvas wc, int x1, int y1, int x2, int y2, uint32_t color);
+WRENDEF void wrenTriangle3(WrenCanvas wc, int x1, int y1, int x2, int y2, int x3, int y3, uint32_t c1, uint32_t c2, uint32_t c3);
 WRENDEF void wrenTriangle(WrenCanvas wc, int x1, int y1, int x2, int y2, int x3, int y3, uint32_t color);
 WRENDEF void wrenText(WrenCanvas wc, const char *text, int x, int y, WrenFont font, size_t size, uint32_t color);
+
+WRENDEF void wrenCopy(WrenCanvas src, WrenCanvas dst);
 
 WRENDEF bool wrenNormalizeRect(int x, int y, int w, int h, size_t pixelsWidth, size_t pixelsHeight, int *x1, int *x2, int *y1, int *y2);
 
@@ -121,12 +124,12 @@ WRENDEF bool wrenNormalizeRect(int x, int y, int w, int h, size_t pixelsWidth, s
 
 #ifdef WREN_IMPLEMENTATION
 
-WRENDEF WrenCanvas wrenCanvas(uint32_t *pixels, size_t width, size_t height) {
+WRENDEF WrenCanvas wrenCanvas(uint32_t *pixels, size_t width, size_t height, size_t stride) {
     WrenCanvas wc = {
         .pixels = pixels,
         .width = width,
         .height = height,
-        .stride = width
+        .stride = stride
     };
 
     return wc;
@@ -258,6 +261,98 @@ WRENDEF void wrenLine(WrenCanvas wc, int x1, int y1, int x2, int y2, uint32_t co
     }
 }
 
+uint32_t mixColors3(uint32_t c1, uint32_t c2, uint32_t c3, int t1, int t2, int t3, int den) {
+    int64_t r1 = WREN_RED(c1);
+    int64_t g1 = WREN_GREEN(c1);
+    int64_t b1 = WREN_BLUE(c1);
+    int64_t a1 = WREN_ALPHA(c1);
+
+    int64_t r2 = WREN_RED(c2);
+    int64_t g2 = WREN_GREEN(c2);
+    int64_t b2 = WREN_BLUE(c2);
+    int64_t a2 = WREN_ALPHA(c2);
+
+    int64_t r3 = WREN_RED(c3);
+    int64_t g3 = WREN_GREEN(c3);
+    int64_t b3 = WREN_BLUE(c3);
+    int64_t a3 = WREN_ALPHA(c3);
+
+    int64_t r4 = (r1*t1 + r2*t2 + r3*t3)/den;
+    int64_t g4 = (g1*t1 + g2*t2 + g3*t3)/den;
+    int64_t b4 = (b1*t1 + b2*t2 + b3*t3)/den;
+    int64_t a4 = (a1*t1 + a2*t2 + a3*t3)/den;
+
+    return WREN_RGBA(r4, g4, b4, a4);
+}
+
+void barycentric(int x1, int y1, int x2, int y2, int x3, int y3, int xp, int yp, int *u1, int *u2, int *det) {
+    *det = ((x1 - x3)*(y2 - y3) - (x2 - x3)*(y1 - y3));
+    *u1  = ((y2 - y3)*(xp - x3) + (x3 - x2)*(yp - y3));
+    *u2  = ((y3 - y1)*(xp - x3) + (x1 - x3)*(yp - y3));
+}
+
+WRENDEF void wrenTriangle3(WrenCanvas wc, int x1, int y1, int x2, int y2, int x3, int y3, uint32_t c1, uint32_t c2, uint32_t c3) {
+    if (y1 > y2) {
+        WREN_SWAP(int, x1, x2);
+        WREN_SWAP(int, y1, y2);
+        WREN_SWAP(int, c1, c2);
+    }
+
+    if (y2 > y3) {
+        WREN_SWAP(int, x2, x3);
+        WREN_SWAP(int, y2, y3);
+        WREN_SWAP(int, c2, c3);
+    }
+    
+    if (y1 > y2) {
+        WREN_SWAP(int, x1, x2);
+        WREN_SWAP(int, y1, y2);
+        WREN_SWAP(int, c1, c2);
+    }
+
+    int dx12 = x2 - x1;
+    int dy12 = y2 - y1;
+    int dx13 = x3 - x1;
+    int dy13 = y3 - y1;
+
+    for (int y = y1; y <= y2; ++y) {
+        if (0 <= y && (size_t) y < wc.height) {
+            int s1 = dy12 != 0 ? (y - y1)*dx12/dy12 + x1 : x1;
+            int s2 = dy13 != 0 ? (y - y1)*dx13/dy13 + x1 : x1;
+            if (s1 > s2) WREN_SWAP(int, s1, s2);
+            for (int x = s1; x <= s2; ++x) {
+                if (0 <= x && (size_t) x < wc.width) {
+                    int u1, u2, det;
+                    barycentric(x1, y1, x2, y2, x3, y3, x, y, &u1, &u2, &det);
+                    uint32_t color = mixColors3(c1, c2, c3, u1, u2, det - u1 - u2, det);
+                    wrenBlendColors(&WREN_PIXEL(wc, x, y), color);
+                }
+            }
+        }
+    }
+
+    int dx32 = x2 - x3;
+    int dy32 = y2 - y3;
+    int dx31 = x1 - x3;
+    int dy31 = y1 - y3;
+
+    for (int y = y2; y <= y3; ++y) {
+        if (0 <= y && (size_t) y < wc.height) {
+            int s1 = dy32 != 0 ? (y - y3)*dx32/dy32 + x3 : x3;
+            int s2 = dy31 != 0 ? (y - y3)*dx31/dy31 + x3 : x3;
+            if (s1 > s2) WREN_SWAP(int, s1, s2);
+            for (int x = s1; x <= s2; ++x) {
+                if (0 <= x && (size_t) x < wc.width) {
+                    int u1, u2, det;
+                    barycentric(x1, y1, x2, y2, x3, y3, x, y, &u1, &u2, &det);
+                    uint32_t color = mixColors3(c1, c2, c3, u1, u2, det - u1 - u2, det);
+                    wrenBlendColors(&WREN_PIXEL(wc, x, y), color);
+                }
+            }
+        }
+    }
+}
+
 WRENDEF void wrenTriangle(WrenCanvas wc, int x1, int y1, int x2, int y2, int x3, int y3, uint32_t color) {
     if (y1 > y2) {
         WREN_SWAP(int, x1, x2);
@@ -326,6 +421,16 @@ WRENDEF void wrenText(WrenCanvas wc, const char *text, int tx, int ty, WrenFont 
                     }
                 }
             }
+        }
+    }
+}
+
+WRENDEF void wrenCopy(WrenCanvas src, WrenCanvas dst) {
+    for (size_t y = 0; y < dst.height; y++) {
+        for (size_t x = 0; x < dst.width; x++) {
+            size_t nx = x*src.width/dst.width;
+            size_t ny = y*src.height/dst.height;
+            WREN_PIXEL(dst, x, y) = WREN_PIXEL(src, nx, ny);
         }
     }
 }

@@ -27,7 +27,7 @@
 static uint32_t pixels[HEIGHT*WIDTH];
 
 bool checkerExample() {
-    WrenCanvas wc = wrenCanvas(pixels, WIDTH, HEIGHT);
+    WrenCanvas wc = wrenCanvas(pixels, WIDTH, HEIGHT, WIDTH);
     wrenFill(wc, 0xFF202020);
 
     for (int y = 0; y < ROWS; y++) {
@@ -55,7 +55,7 @@ float lerpf(float a, float b, float t) {
 }
 
 bool circleExample() {
-    WrenCanvas wc = wrenCanvas(pixels, WIDTH, HEIGHT);
+    WrenCanvas wc = wrenCanvas(pixels, WIDTH, HEIGHT, WIDTH);
     wrenFill(wc, BACKGROUND_COLOR);
 
     for (int y = 0; y < ROWS; y++) {
@@ -81,7 +81,7 @@ bool circleExample() {
 }
 
 bool lineExample() {
-    WrenCanvas wc = wrenCanvas(pixels, WIDTH, HEIGHT);
+    WrenCanvas wc = wrenCanvas(pixels, WIDTH, HEIGHT, WIDTH);
     wrenFill(wc, BACKGROUND_COLOR);
 
     wrenLine(wc, 0, 0, WIDTH, HEIGHT, FOREGROUND_COLOR);
@@ -107,7 +107,7 @@ bool lineExample() {
 }
 
 bool triangleExample() {
-    WrenCanvas wc = wrenCanvas(pixels, WIDTH, HEIGHT);
+    WrenCanvas wc = wrenCanvas(pixels, WIDTH, HEIGHT, WIDTH);
     wrenFill(wc, BACKGROUND_COLOR);
 
     wrenTriangle(wc, 0, 0, WIDTH, 0, WIDTH/2, HEIGHT, FOREGROUND_COLOR);

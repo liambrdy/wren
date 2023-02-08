@@ -154,7 +154,7 @@ typedef struct {
     }
 
 void testFillRect() {
-    WrenCanvas wc = wrenCanvas(actualPixels, WIDTH, HEIGHT);
+    WrenCanvas wc = wrenCanvas(actualPixels, WIDTH, HEIGHT, WIDTH);
     wrenFill(wc, BACKGROUND_COLOR);
     wrenRect(wc, WIDTH/2 - WIDTH/8, HEIGHT/2 - HEIGHT/8, WIDTH/4, HEIGHT/4, RED_COLOR);
     wrenRect(wc, WIDTH - 1, HEIGHT - 1, -WIDTH/2, -HEIGHT/2, GREEN_COLOR);
@@ -162,7 +162,7 @@ void testFillRect() {
 }
 
 void testFillCircle() {
-    WrenCanvas wc = wrenCanvas(actualPixels, WIDTH, HEIGHT);
+    WrenCanvas wc = wrenCanvas(actualPixels, WIDTH, HEIGHT, WIDTH);
     wrenFill(wc, BACKGROUND_COLOR);
     wrenCircle(wc, 0, 0, WIDTH/2, RED_COLOR);
     wrenCircle(wc, WIDTH/2, HEIGHT/2, WIDTH/4, BLUE_COLOR);
@@ -170,14 +170,14 @@ void testFillCircle() {
 }
 
 void testDrawLine() {
-    WrenCanvas wc = wrenCanvas(actualPixels, WIDTH, HEIGHT);
+    WrenCanvas wc = wrenCanvas(actualPixels, WIDTH, HEIGHT, WIDTH);
     wrenFill(wc, BACKGROUND_COLOR);
     wrenLine(wc, 0, 0, WIDTH, HEIGHT, RED_COLOR);
     wrenLine(wc, WIDTH, 0, 0, HEIGHT, BLUE_COLOR);
 }
 
 void testFillTriangle() {
-    WrenCanvas wc = wrenCanvas(actualPixels, WIDTH, HEIGHT);
+    WrenCanvas wc = wrenCanvas(actualPixels, WIDTH, HEIGHT, WIDTH);
     wrenFill(wc, BACKGROUND_COLOR);
 
     {
@@ -203,7 +203,7 @@ void testFillTriangle() {
 }
 
 void testAlphaBlending() {
-    WrenCanvas wc = wrenCanvas(actualPixels, WIDTH, HEIGHT);
+    WrenCanvas wc = wrenCanvas(actualPixels, WIDTH, HEIGHT, WIDTH);
     wrenFill(wc, BACKGROUND_COLOR);
     wrenRect(wc, 0, 0, WIDTH*3/4, HEIGHT*3/4, RED_COLOR);
     wrenRect(wc, WIDTH-1, HEIGHT-1, -WIDTH*3/4, -HEIGHT*3/4, 0x5520AA20);
